@@ -9,27 +9,20 @@ class SelectionMethod:
     TOURNAMENT = 'tournament'
     
 class GenEvolve:
-    def __init__(self, n, pop_size, max_generations):
+    def __init__(self, n, pop_size, max_generations, log=True):
         self.n = n
         self.pop_size = pop_size
         self.max_generations = max_generations
-        self.population = self._initialize_population()
+        self.population = None
         self.previous_population = self.population
         self.g=0
+        self.log = log
 
     def _initialize_population(self):
         # this ensures row conflicts will not happen
         return [random.choices(range(self.n),k=self.n) for i in range(self.pop_size)]
-        # population = []
-        # for i in range(self.pop_size):
-        #     chromosome = list(range(self.n))
-        #     random.shuffle(chromosome)
-        #     population.append(chromosome)
-        # return population
 
-
-    def _loss(self, chromosome):
-        # # number of conflicts
+ # # number of conflicts
         # col_conflicts = 0
         # diag_conflicts = 0
 
@@ -46,6 +39,11 @@ class GenEvolve:
         # # diagonal and column conflicts have the same weight
         # return col_conflicts + diag_conflicts
     
+    def _log(self, x):
+        if self.log:
+            print(x)
+
+    def _loss(self, chromosome):
         # number of conflicts
         col_conflicts = 0
         diag_conflicts = 0
@@ -88,10 +86,9 @@ class GenEvolve:
 
     def _rank_based_selection(self, population):
         # randomly select a chromosome based on its loss
-        fitness_values = [self._loss(chromosome) for chromosome in population]
-        ranks = list(range(1, self.pop_size+1))
-        sum_rank = sum(ranks)
-        rank_probabilities = [rank / sum_rank for rank in ranks]
+        loss_values = [self._loss(chromosome) for chromosome in population]
+        sum_rank = sum(loss_values)
+        rank_probabilities = [1-(loss/sum_rank) for loss in loss_values]
         selected_population = random.choices(population, weights=rank_probabilities, k=self.pop_size)
         return selected_population
 
@@ -107,15 +104,13 @@ class GenEvolve:
         # Select a random crossover point (single point crossover)
         crossover_point = random.randint(0, self.n - 1)
 
-        # Create the offspring chromosomes by swapping the genetic material of the parents
+        # Create the child chromosomes by swapping the genetic material of the parents
         child1 = parent1[:crossover_point] + parent2[crossover_point:]
         child2 = parent2[:crossover_point] + parent1[crossover_point:]
 
         return child1, child2
     
     def _mutation(self, chromosome):
-        # Introduce random changes in the chromosome to maintain genetic diversity
-        # The mutation function should return the mutated chromosome
         if random.random() < 0.5:
             # Select two random positions in the chromosome and swap their values
             i, j = random.sample(range(self.n), 2)
@@ -125,10 +120,18 @@ class GenEvolve:
     def evolve(self, selection=SelectionMethod.TOURNAMENT, full_restart=True):
         best_fitness = np.inf
         stagnation_count = 0
-        max_stagnation = self.n*3
+
+        # maximum number of generations without improvement
+        # this is dynamically defined based on the difficulty of the problem
+        max_stagnation = self.n*3 
+
+        # initialize population
+        if self.population is None:
+            self.population = self._initialize_population()
 
         while self.g < self.max_generations:
 
+            # select parents
             if selection == SelectionMethod.RANK:
                 parents = self._rank_based_selection(self.population)
             elif selection == SelectionMethod.TOURNAMENT:
@@ -136,6 +139,7 @@ class GenEvolve:
             else:
                 parents = self._selection(self.population)
 
+            # create new generation
             new_generation = []
             while len(new_generation)<self.pop_size:
                 # choose parents
@@ -147,6 +151,7 @@ class GenEvolve:
                 child1 = self._mutation(child1)
                 child2 = self._mutation(child2)
 
+                # survival of the fittest among parents and children (family)
                 family = []
                 family.append(parent1)
                 family.append(parent2)
@@ -156,23 +161,25 @@ class GenEvolve:
                 new_generation.append(family[0])
                 new_generation.append(family[1])
 
+            # check for best chromosome
             best_chromosome = min(new_generation, key=self._loss)
             best_chromosome_fitness = self._loss(best_chromosome)
-            if best_chromosome_fitness == 0:
+            if best_chromosome_fitness == 0: # terminate if solution is found
                 return best_chromosome
-            elif best_chromosome_fitness < best_fitness:
+            elif best_chromosome_fitness < best_fitness: # update best chromosome
                 best_fitness = best_chromosome_fitness
                 stagnation_count = 0
-                self.previous_population = copy(self.population)
-            else:
+                self.previous_population = copy(self.population) # keep track of previous population
+            else: # no imporvement was made in this generation
                 stagnation_count += 1
 
-            self.population = new_generation
+            # update population
+            self.population = new_generation 
             self.g += 1
 
             # check for stagnation
-            if stagnation_count >= max_stagnation:
-                print(f"Generation {self.g-1:<7}The algorithm may have reached a plateau. Restarting...")
+            if stagnation_count >= max_stagnation: # restart if stagnation is reached
+                self._log(f"Generation {self.g-1:<7}The algorithm may have reached a plateau. Restarting...")
                 if full_restart:
                     self.population = self._initialize_population()
                 else:
@@ -180,8 +187,8 @@ class GenEvolve:
                 best_fitness = np.inf
                 stagnation_count = 0
             else:
-                print(f'Generation {self.g-1:<7}Fittest: {best_chromosome_fitness:<4}Global Fittest: {best_fitness}')
-        print("Maximum generations reached. No solution found.")
+                self._log(f'Generation {self.g-1:<7}Fittest: {best_chromosome_fitness:<4}Global Fittest: {best_fitness}')
+        self._log("Maximum generations reached. No solution found.")
         return None
 
 
