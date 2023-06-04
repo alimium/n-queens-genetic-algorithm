@@ -22,7 +22,13 @@ class GenEvolve:
         # this ensures row conflicts will not happen
         return [random.choices(range(self.n),k=self.n) for i in range(self.pop_size)]
 
- # # number of conflicts
+    
+    def _log(self, x):
+        if self.log:
+            print(x)
+
+    def _loss(self, chromosome):
+        # # number of conflicts
         # col_conflicts = 0
         # diag_conflicts = 0
 
@@ -38,12 +44,7 @@ class GenEvolve:
 
         # # diagonal and column conflicts have the same weight
         # return col_conflicts + diag_conflicts
-    
-    def _log(self, x):
-        if self.log:
-            print(x)
 
-    def _loss(self, chromosome):
         # number of conflicts
         col_conflicts = 0
         diag_conflicts = 0
